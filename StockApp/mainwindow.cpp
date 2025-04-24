@@ -215,6 +215,9 @@ void MainWindow::onStockDataReceived(const StockDataManager::StockData& data)
 void MainWindow::onHistoricalDataReceived()
 {
     const StockDataManager::HistoricalData& data = stockManager->getHistoricalData();
+    StockDataManager::StockData stockinfo;
+    stockinfo.name = data.name;
+    updateStockInfo(stockinfo);
     chartManager->updateHistoricalData(data);
 }
 

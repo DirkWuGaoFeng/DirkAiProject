@@ -171,19 +171,22 @@ void StockDataManager::onRealtimeDataReceived()
  */
 void StockDataManager::onHistoricalDataReceived()
 {
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-    if (!reply) return;
+    //QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    //if (!reply) return;
 
-    if (reply->error() == QNetworkReply::NoError) {
-        QByteArray data = reply->readAll();
+    if (!currentReply) return;
+
+    if (currentReply->error() == QNetworkReply::NoError) {
+        QByteArray data = currentReply->readAll();
         processHistoricalData(data);
         emit historicalDataReceived();
     }
 
     else {
-        emit errorOccurred(reply->errorString());
+        emit errorOccurred(currentReply->errorString());
     }
-    reply->deleteLater();
+    currentReply->deleteLater();
+    currentReply = nullptr;
 }
 
 /**
@@ -270,6 +273,18 @@ void StockDataManager::processHistoricalData(const QByteArray& data)
         return;
     }
 
+    if (!stock_data.contains("qt")) {
+        emit errorOccurred("JSON数据中缺少qt字段");
+        return;
+    }
+
+    QJsonObject qt_data = stock_data["qt"].toObject();
+    if (qt_data.isEmpty()) {
+        emit errorOccurred("qt数据为空");
+        return;
+    }
+
+    historicalData.name = qt_data["zjlx"][12].toString().toUtf8();
     historicalData.openPrices.clear();
     historicalData.highPrices.clear();
     historicalData.lowPrices.clear();

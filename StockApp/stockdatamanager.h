@@ -37,6 +37,7 @@ public:
      * @brief 历史股票数据结构
      */
     struct HistoricalData {
+        QString name;
         QVector<double> openPrices;
         QVector<double> highPrices;
         QVector<double> lowPrices;
