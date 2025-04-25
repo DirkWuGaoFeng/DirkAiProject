@@ -65,11 +65,10 @@ private slots:
 
     /**
      * @brief 股票数据接收槽函数
-     * @param data 接收到的股票数据
      * 
      * 处理接收到新的股票数据时的更新操作
      */
-    void onStockDataReceived(const StockDataManager::StockData& data);
+    void onStockDataReceived();
 
     /**
      * @brief 历史数据接收槽函数

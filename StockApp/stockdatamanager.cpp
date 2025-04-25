@@ -79,6 +79,8 @@ void StockDataManager::requestHistoricalData(const QString& stockCode, const QDa
 {
     if (stockCode.isEmpty()) return;
     
+    getStockClosingInfo(stockCode);
+
     // 清除历史数据
     historicalData = HistoricalData();
     
@@ -121,6 +123,26 @@ void StockDataManager::cleanupReply()
     }
 }
 
+void StockDataManager::getStockClosingInfo(const QString& stockCode)
+{
+    QNetworkRequest request(QUrl(QString("http://qt.gtimg.cn/q=%1").arg(stockCode)));
+    request.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0");
+
+    QNetworkReply *reply  = networkManager->get(request);
+
+    connect(reply, &QNetworkReply::finished, [this, reply]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray rawData = reply->readAll();
+            QString data = QString::fromLocal8Bit(rawData);
+            processRealtimeData(data);
+        } else {
+            emit errorOccurred(reply->errorString());
+        }
+
+        reply->deleteLater();
+    });
+}
+
 /**
  * @brief 更新股票数据
  * 
@@ -133,7 +155,6 @@ void StockDataManager::updateStockData()
 
     QNetworkRequest request(QUrl(QString("http://qt.gtimg.cn/q=%1").arg(currentStockCode)));
     request.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0");
-    //request.setRawHeader("Referer", "http://finance.sina.com.cn/");
 
     cleanupReply();
     currentReply = networkManager->get(request);
@@ -155,6 +176,7 @@ void StockDataManager::onRealtimeDataReceived()
         QByteArray rawData = currentReply->readAll();
         QString data = QString::fromLocal8Bit(rawData);
         processRealtimeData(data);
+        emit stockDataReceived();
     } else {
         emit errorOccurred(currentReply->errorString());
     }
@@ -171,9 +193,6 @@ void StockDataManager::onRealtimeDataReceived()
  */
 void StockDataManager::onHistoricalDataReceived()
 {
-    //QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-    //if (!reply) return;
-
     if (!currentReply) return;
 
     if (currentReply->error() == QNetworkReply::NoError) {
@@ -207,36 +226,32 @@ void StockDataManager::processRealtimeData(const QString& data)
         return;
     }
 
-    StockData stockData;
-    stockData.name = fields[1].toUtf8();
-    stockData.currentPrice = fields[3].toDouble();  // 当前价
-    stockData.openPrice = fields[5].toDouble();     // 开盘价
-    stockData.highPrice = fields[33].toDouble();     // 最高价
-    stockData.lowPrice = fields[34].toDouble();      // 最低价
-    stockData.closePrice = fields[4].toDouble();    // 昨收价
-    stockData.timestamp = QDateTime::fromString(fields[30], "yyyyMMddhhmmss");
+    latestData.name = fields[1].toUtf8();
+    latestData.currentPrice = fields[3].toDouble();  // 当前价
+    latestData.openPrice = fields[5].toDouble();     // 开盘价
+    latestData.highPrice = fields[33].toDouble();     // 最高价
+    latestData.lowPrice = fields[34].toDouble();      // 最低价
+    latestData.closePrice = fields[4].toDouble();    // 昨收价
+    latestData.timestamp = QDateTime::fromString(fields[30], "yyyyMMddhhmmss");
     
     // 解析买卖盘数据
     for(int i = 0; i < 5; i++) {
-        stockData.buyVolumes[i] = fields[10 + i*2].toDouble();
-        stockData.buyPrices[i] = fields[9 + i*2].toDouble();
-        stockData.sellVolumes[i] = fields[20 + i*2].toDouble();
-        stockData.sellPrices[i] = fields[19 + i*2].toDouble();
+        latestData.buyVolumes[i] = fields[10 + i*2].toDouble();
+        latestData.buyPrices[i] = fields[9 + i*2].toDouble();
+        latestData.sellVolumes[i] = fields[20 + i*2].toDouble();
+        latestData.sellPrices[i] = fields[19 + i*2].toDouble();
     }
     
     // 计算其他指标
     double volume = fields[36].toDouble();  // 成交量
     double amount = fields[37].toDouble();  // 成交额
-    stockData.marketValue = fields[45].toDouble();  // 总市值
-    stockData.totalShares = stockData.marketValue / stockData.currentPrice;  // 总股本（单位：股）
-    stockData.circulatingValue = fields[44].toDouble();  // 流通市值
-    stockData.circulatingShares = stockData.circulatingValue / stockData.totalShares;  // 流通股本
-    stockData.turnoverRate = fields[38].toDouble();  // 换手率
-    stockData.peRatio = fields[39].toDouble();  // 市盈率
-    stockData.pbRatio = fields[46].toDouble();  // 市净率
-
-    latestData = stockData;
-    emit stockDataReceived(stockData);
+    latestData.marketValue = fields[45].toDouble();  // 总市值
+    latestData.totalShares = latestData.marketValue / latestData.currentPrice;  // 总股本（单位：股）
+    latestData.circulatingValue = fields[44].toDouble();  // 流通市值
+    latestData.circulatingShares = latestData.circulatingValue / latestData.totalShares;  // 流通股本
+    latestData.turnoverRate = fields[38].toDouble();  // 换手率
+    latestData.peRatio = fields[39].toDouble();  // 市盈率
+    latestData.pbRatio = fields[46].toDouble();  // 市净率
 }
 
 /**
@@ -351,7 +366,5 @@ void StockDataManager::processHistoricalData(const QByteArray& data)
         historicalData.highPrices.append(highPrice);
         historicalData.lowPrices.append(lowPrice);
     }
-    
-    emit historicalDataReceived();
 }
 

@@ -8,13 +8,30 @@
 #include <QStyledItemDelegate>
 #include <QTextDocument>
 
-/**
+ /**
  * @brief 自定义高亮委托类
+ * 
+ * 该类继承自QStyledItemDelegate，用于自定义列表项的绘制方式，
+ * 支持HTML富文本渲染和选中项的高亮显示。
+ * 主要用于股票代码建议列表的显示优化。
  */
- class HighlightDelegate : public QStyledItemDelegate {
+class HighlightDelegate : public QStyledItemDelegate {
     public:
-        HighlightDelegate(QObject *parent = nullptr) : QStyledItemDelegate(parent) {}
-        void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        /**
+ * @brief 构造函数
+ * @param parent 父对象指针
+ */
+HighlightDelegate(QObject *parent = nullptr) : QStyledItemDelegate(parent) {}
+        /**
+ * @brief 自定义绘制方法
+ * @param painter 用于绘制的QPainter对象
+ * @param option 绘制选项，包含样式信息
+ * @param index 当前项的模型索引
+ * 
+ * 该方法使用QTextDocument渲染HTML富文本内容，
+ * 并实现选中项的背景高亮效果。
+ */
+void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
             painter->save();
             QTextDocument doc;
             doc.setHtml(index.data().toString());
@@ -31,7 +48,15 @@
             doc.drawContents(painter, clip);
             painter->restore();
         }
-        QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        /**
+ * @brief 计算项的大小
+ * @param option 样式选项
+ * @param index 模型索引
+ * @return 返回项的推荐大小
+ * 
+ * 根据HTML内容的实际大小计算项的推荐尺寸。
+ */
+QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
             QTextDocument doc;
             doc.setHtml(index.data().toString());
             doc.setTextWidth(option.rect.width());
@@ -119,6 +144,7 @@ void MainWindow::setupUI()
 
     // 创建建议列表
     suggestionList = new QListWidget(this);
+    // 设置自定义委托用于渲染富文本内容，支持HTML标签显示和高亮匹配文本
     suggestionList->setItemDelegate(new HighlightDelegate(suggestionList));
     //Qt::Tool 使窗口作为工具窗口，不会阻塞主窗口
     //Qt::FramelessWindowHint 无边框窗口
@@ -171,9 +197,6 @@ void MainWindow::setupUI()
             QRegularExpression regex("(" + pattern + ")", QRegularExpression::CaseInsensitiveOption);
             QString highlighted = suggestion;
             highlighted.replace(regex, "<span style='color:red;'>\\1</span>");
-            // 不再转义为纯文本，直接作为HTML
-            // highlighted = highlighted.toHtmlEscaped();
-            //qDebug() << "高亮结果: " << highlighted;
             item->setText(highlighted);
             suggestionList->addItem(item);
         }
@@ -239,8 +262,11 @@ void MainWindow::setupUI()
     chartTypeCombo->addItem("K线图");
     searchLayout->addWidget(chartTypeCombo);
 
-    // 创建信息显示区域
-    QHBoxLayout *infoLayout = new QHBoxLayout();
+    // 创建信息显示区域和买卖盘表格的容器
+    QHBoxLayout *infoOrderLayout = new QHBoxLayout();
+
+    // 信息显示区域
+    QVBoxLayout *infoLayout = new QVBoxLayout();
     stockNameLabel = new QLabel(this);
     currentPriceLabel = new QLabel(this);
     totalSharesLabel = new QLabel(this);
@@ -260,8 +286,12 @@ void MainWindow::setupUI()
     infoLayout->addWidget(peRatioLabel);
     infoLayout->addWidget(pbRatioLabel);
 
-    // 创建买卖盘数据表格
+    // 买卖盘数据表格
     QHBoxLayout *orderLayout = new QHBoxLayout();
+    orderLayout->setContentsMargins(0, 0, 0, 0);
+
+    infoOrderLayout->addLayout(infoLayout);
+    infoOrderLayout->addLayout(orderLayout);
 
     // 创建卖盘表格
     sellOrderTable = new QTableWidget(this);
@@ -270,6 +300,7 @@ void MainWindow::setupUI()
     sellOrderTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     sellOrderTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     sellOrderTable->verticalHeader()->setVisible(false);
+    sellOrderTable->setMaximumWidth(200);
 
     // 创建买盘表格
     buyOrderTable = new QTableWidget(this);
@@ -278,6 +309,7 @@ void MainWindow::setupUI()
     buyOrderTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     buyOrderTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     buyOrderTable->verticalHeader()->setVisible(false);
+    buyOrderTable->setMaximumWidth(200);
 
     orderLayout->addWidget(sellOrderTable);
     orderLayout->addWidget(buyOrderTable);
@@ -285,11 +317,12 @@ void MainWindow::setupUI()
     // 创建图表视图
     chartView = new QChartView(chartManager->chart(), this);
     chartView->setRenderHint(QPainter::Antialiasing);
+    chartView->setMinimumHeight(400);
+    chartView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     // 添加到主布局
     mainLayout->addLayout(searchContainer);
-    mainLayout->addLayout(infoLayout);
-    mainLayout->addLayout(orderLayout);
+    mainLayout->addLayout(infoOrderLayout);
     mainLayout->addWidget(chartView);
 
     // 连接信号和槽
@@ -364,8 +397,9 @@ void MainWindow::onChartTypeChanged(int index)
  * - 更新界面上显示的股票信息
  * - 更新图表显示的实时数据
  */
-void MainWindow::onStockDataReceived(const StockDataManager::StockData& data)
+void MainWindow::onStockDataReceived()
 {
+    const StockDataManager::StockData& data = stockManager->getLatestData();
     updateStockInfo(data);
     chartManager->updateRealtimeData(data);
 }
@@ -380,9 +414,8 @@ void MainWindow::onStockDataReceived(const StockDataManager::StockData& data)
 void MainWindow::onHistoricalDataReceived()
 {
     const StockDataManager::HistoricalData& data = stockManager->getHistoricalData();
-    StockDataManager::StockData stockinfo;
-    stockinfo.name = data.name;
-    updateStockInfo(stockinfo);
+    const StockDataManager::StockData& stockdata = stockManager->getLatestData();
+    updateStockInfo(stockdata);
     chartManager->updateHistoricalData(data);
 }
 

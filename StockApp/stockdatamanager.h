@@ -99,17 +99,23 @@ public:
     const HistoricalData& getHistoricalData() const { return historicalData; }
 
     /**
+     * @brief 获取最新数据
+     * @return 返回最新数据的常量引用
+     */
+    const StockData& getLatestData() const { return latestData; }
+
+    /**
      * @brief 检查是否正在更新数据
      * @return 如果正在更新返回true，否则返回false
      */
     bool isUpdating() const { return updateTimer->isActive(); }
 
+    void getStockClosingInfo(const QString& stockCode);
 signals:
     /**
      * @brief 股票数据接收信号
-     * @param data 接收到的实时股票数据
      */
-    void stockDataReceived(const StockData& data);
+    void stockDataReceived();
 
     /**
      * @brief 历史数据接收完成信号
