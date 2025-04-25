@@ -9,6 +9,7 @@
 #include <QComboBox>
 #include <QListWidget>
 #include <QTableWidget>
+#include <QPropertyAnimation>
 #include "stockdatamanager.h"
 #include "chartmanager.h"
 #include "stockcodemap.h"

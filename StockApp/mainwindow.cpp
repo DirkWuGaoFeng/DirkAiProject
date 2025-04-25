@@ -5,6 +5,39 @@
 #include <QMessageBox>
 #include <QListWidget>
 #include <QCompleter>
+#include <QStyledItemDelegate>
+#include <QTextDocument>
+
+/**
+ * @brief 自定义高亮委托类
+ */
+ class HighlightDelegate : public QStyledItemDelegate {
+    public:
+        HighlightDelegate(QObject *parent = nullptr) : QStyledItemDelegate(parent) {}
+        void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+            painter->save();
+            QTextDocument doc;
+            doc.setHtml(index.data().toString());
+            // 设置item背景色选中高亮
+            if (option.state & QStyle::State_Selected) {
+                painter->fillRect(option.rect, option.palette.highlight());
+                doc.setDefaultStyleSheet("body {color: " + option.palette.highlightedText().color().name() + ";}");
+            }
+            // 调整文本位置
+            QRect textRect = option.rect;
+            painter->translate(textRect.topLeft());
+            QRect clip(0, 0, textRect.width(), textRect.height());
+            doc.setTextWidth(textRect.width());
+            doc.drawContents(painter, clip);
+            painter->restore();
+        }
+        QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+            QTextDocument doc;
+            doc.setHtml(index.data().toString());
+            doc.setTextWidth(option.rect.width());
+            return QSize(doc.idealWidth(), doc.size().height());
+        }
+    };
 
 /**
  * @brief 主窗口构造函数
@@ -55,6 +88,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
             return true;
         }
     }
+
     return QMainWindow::eventFilter(obj, event);
 }
 
@@ -82,49 +116,97 @@ void MainWindow::setupUI()
     stockCodeEdit = new QLineEdit(this);
     stockCodeEdit->setPlaceholderText("输入股票代码或名称（如：sh600000或平安银行）");
     searchButton = new QPushButton("实时数据", this);
-    
+
     // 创建建议列表
     suggestionList = new QListWidget(this);
-    suggestionList->setWindowFlags(Qt::Popup);
-    suggestionList->setFocusProxy(stockCodeEdit);
+    suggestionList->setItemDelegate(new HighlightDelegate(suggestionList));
+    //Qt::Tool 使窗口作为工具窗口，不会阻塞主窗口
+    //Qt::FramelessWindowHint 无边框窗口
+    //Qt::NoDropShadowWindowHint 无阴影效果
+    suggestionList->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
+    suggestionList->setAttribute(Qt::WA_ShowWithoutActivating);
+    suggestionList->setFocusPolicy(Qt::NoFocus);
     suggestionList->setMouseTracking(true);
     suggestionList->hide();
-    
+
+    // 创建动画效果
+    QPropertyAnimation *showAnimation = new QPropertyAnimation(suggestionList, "opacity");
+    showAnimation->setDuration(200);
+    showAnimation->setStartValue(0);
+    showAnimation->setEndValue(1);
+
+    QPropertyAnimation *hideAnimation = new QPropertyAnimation(suggestionList, "opacity");
+    hideAnimation->setDuration(200);
+    hideAnimation->setStartValue(1);
+    hideAnimation->setEndValue(0);
+
+    connect(hideAnimation, &QPropertyAnimation::finished, [this]() {
+        suggestionList->hide();
+    });
+
     // 连接股票代码输入框的文本变化信号
-    connect(stockCodeEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
-        if (text.isEmpty()) {
-            suggestionList->hide();
+    connect(stockCodeEdit, &QLineEdit::textChanged, this, [this, showAnimation, hideAnimation](const QString &text) {
+        QString trimmedText = text.trimmed();
+        if (trimmedText.isEmpty()) {
+            hideAnimation->start();
             return;
         }
-        
+
         // 获取匹配的股票列表
-        QStringList suggestions = stockCodeMap->search(text);
-        
+        QStringList suggestions = stockCodeMap->search(trimmedText);
+
+        // 调试信息，检查匹配结果
+        qDebug() << "输入文本: " << text << " 匹配结果: " << suggestions;
+
         if (suggestions.isEmpty()) {
-            suggestionList->hide();
+            hideAnimation->start();
             return;
         }
-        
+
         // 更新建议列表
         suggestionList->clear();
-        suggestionList->addItems(suggestions);
-        
+        for (const QString &suggestion : suggestions) {
+            QListWidgetItem *item = new QListWidgetItem();
+            QString pattern = QRegularExpression::escape(trimmedText);
+            QRegularExpression regex("(" + pattern + ")", QRegularExpression::CaseInsensitiveOption);
+            QString highlighted = suggestion;
+            highlighted.replace(regex, "<span style='color:red;'>\\1</span>");
+            // 不再转义为纯文本，直接作为HTML
+            // highlighted = highlighted.toHtmlEscaped();
+            //qDebug() << "高亮结果: " << highlighted;
+            item->setText(highlighted);
+            suggestionList->addItem(item);
+        }
+
         // 调整建议列表的位置和大小
         QPoint pos = stockCodeEdit->mapToGlobal(stockCodeEdit->rect().bottomLeft());
         int width = stockCodeEdit->width();
         int height = qMin(200, suggestions.count() * 25);
         suggestionList->setGeometry(pos.x(), pos.y(), width, height);
+
+        // 确保建议列表显示在最上层
+        suggestionList->raise();
+
+        // 显示建议列表并播放动画
         suggestionList->show();
+        showAnimation->start();
+
+        // 保持输入框焦点
+        stockCodeEdit->setFocus();
     });
-    
+
     // 连接建议列表的项目点击信号
-    connect(suggestionList, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+    connect(suggestionList, &QListWidget::itemClicked, this, [this, hideAnimation](QListWidgetItem *item) {
         QString text = item->text();
-        QString stockCode = text.split(" - ").first();
+        // 使用正则表达式去除所有HTML标签，提取纯净股票代码
+        QString stockCode = text;
+        stockCode.remove(QRegularExpression("<[^>]*>"));
+        stockCode = stockCode.split(" - ").first();
         stockCodeEdit->setText(stockCode);
-        suggestionList->hide();
+        hideAnimation->start();
+        stockCodeEdit->setFocus(); // 选择后重新设置焦点到输入框
     });
-    
+
     searchLayout->addWidget(stockCodeEdit);
     searchLayout->addWidget(searchButton);
 
@@ -180,7 +262,7 @@ void MainWindow::setupUI()
 
     // 创建买卖盘数据表格
     QHBoxLayout *orderLayout = new QHBoxLayout();
-    
+
     // 创建卖盘表格
     sellOrderTable = new QTableWidget(this);
     sellOrderTable->setColumnCount(2);
@@ -188,7 +270,7 @@ void MainWindow::setupUI()
     sellOrderTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     sellOrderTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     sellOrderTable->verticalHeader()->setVisible(false);
-    
+
     // 创建买盘表格
     buyOrderTable = new QTableWidget(this);
     buyOrderTable->setColumnCount(2);
@@ -196,10 +278,10 @@ void MainWindow::setupUI()
     buyOrderTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     buyOrderTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     buyOrderTable->verticalHeader()->setVisible(false);
-    
+
     orderLayout->addWidget(sellOrderTable);
     orderLayout->addWidget(buyOrderTable);
-    
+
     // 创建图表视图
     chartView = new QChartView(chartManager->chart(), this);
     chartView->setRenderHint(QPainter::Antialiasing);

@@ -88,7 +88,7 @@ void StockDataManager::requestHistoricalData(const QString& stockCode, const QDa
     QNetworkRequest request(QUrl(QString("http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=%1,day,%2,%3,100,qfq").arg(stockCode).arg(startTimeStr).arg(endTimeStr)));
     request.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0");
 
-    cleanupReply();
+    stopUpdates();
     currentReply = networkManager->get(request);
     connect(currentReply, &QNetworkReply::finished, this, &StockDataManager::onHistoricalDataReceived);
 }
