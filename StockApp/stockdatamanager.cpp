@@ -52,7 +52,7 @@ void StockDataManager::setupConnections()
 
 /**
  * @brief 请求股票数据
- * @param stockCode 股票代码，格式为"sh000001"或"sz000001"
+ * @param stockCode 股票代码，格式为"sh000001"或"sz000001"或"bj000001"
  * 
  * 根据提供的股票代码请求实时和历史数据。首先验证股票代码格式，
  * 然后请求历史K线数据，并启动定时器定期更新实时数据。
@@ -60,8 +60,8 @@ void StockDataManager::setupConnections()
 void StockDataManager::requestRealtimeData(const QString& stockCode)
 {
     // 校验股票代码格式
-    if (!stockCode.startsWith("sh") && !stockCode.startsWith("sz")) {
-        emit errorOccurred("股票代码格式错误：必须以'sh'或'sz'开头");
+    if (!stockCode.startsWith("sh") && !stockCode.startsWith("sz") && !stockCode.startsWith("bj")) {
+        emit errorOccurred("股票代码格式错误：必须以'sh'或'sz'或'bj'开头");
         return;
     }
     
@@ -131,9 +131,9 @@ void StockDataManager::updateStockData()
 {
     if (currentStockCode.isEmpty()) return;
 
-    QNetworkRequest request(QUrl(QString("http://hq.sinajs.cn/list=%1").arg(currentStockCode)));
+    QNetworkRequest request(QUrl(QString("http://qt.gtimg.cn/q=%1").arg(currentStockCode)));
     request.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0");
-    request.setRawHeader("Referer", "http://finance.sina.com.cn/");
+    //request.setRawHeader("Referer", "http://finance.sina.com.cn/");
 
     cleanupReply();
     currentReply = networkManager->get(request);
@@ -195,12 +195,12 @@ void StockDataManager::onHistoricalDataReceived()
  * 
  * 解析新浪财经接口返回的数据格式，提取所需的股票信息。
  * 数据格式示例：
- * var hq_str_sz000001="平安银行,15.640,15.630,15.640,15.680,15.510,15.630,15.640,346366700,5419491239.460,2200,15.630,15800,15.620,16300,15.610,12800,15.600,18800,15.590,2200,15.640,4300,15.650,7500,15.660,5200,15.670,6500,15.680,2023-11-24,15:00:03,00,";
+ * var v_sz000858="51~五 粮 液~000858~129.68~129.06~129.20~54265~27537~26711~129.67~12~129.65~5~129.64~2~129.63~7~129.62~2~129.68~88~129.69~17~129.70~26~129.71~15~129.72~7~~20250425111454~0.62~0.48~130.22~128.96~129.68/54265/703736059~54265~70374~0.14~15.58~~130.22~128.96~0.98~5033.56~5033.67~3.98~141.97~116.15~1.07~-125~129.69~15.14~16.66~~~1.22~70373.6059~0.0000~0~ ~GP-A~-5.66~-1.57~5.59~23.69~19.58~176.18~103.75~-1.46~-3.15~1.49~3881525907~3881608005~-69.06~4.90~3881525907~~~-8.50~0.14~~CNY~0~~129.77~-45";
  */
 void StockDataManager::processRealtimeData(const QString& data)
 {
     QString stockStr = data.split('"')[1];
-    QStringList fields = stockStr.split(',');
+    QStringList fields = stockStr.split('~');
     
     if (fields.size() < 32) {
         emit errorOccurred("Invalid realtime data format");
@@ -208,13 +208,32 @@ void StockDataManager::processRealtimeData(const QString& data)
     }
 
     StockData stockData;
-    stockData.name = fields[0].toUtf8();
+    stockData.name = fields[1].toUtf8();
     stockData.currentPrice = fields[3].toDouble();  // 当前价
-    stockData.openPrice = fields[1].toDouble();     // 开盘价
-    stockData.highPrice = fields[4].toDouble();     // 最高价
-    stockData.lowPrice = fields[5].toDouble();      // 最低价
-    stockData.closePrice = fields[2].toDouble();    // 昨收价
-    stockData.timestamp = QDateTime::fromString(fields[30] + " " + fields[31], "yyyy-MM-dd hh:mm:ss");
+    stockData.openPrice = fields[5].toDouble();     // 开盘价
+    stockData.highPrice = fields[33].toDouble();     // 最高价
+    stockData.lowPrice = fields[34].toDouble();      // 最低价
+    stockData.closePrice = fields[4].toDouble();    // 昨收价
+    stockData.timestamp = QDateTime::fromString(fields[30], "yyyyMMddhhmmss");
+    
+    // 解析买卖盘数据
+    for(int i = 0; i < 5; i++) {
+        stockData.buyVolumes[i] = fields[10 + i*2].toDouble();
+        stockData.buyPrices[i] = fields[9 + i*2].toDouble();
+        stockData.sellVolumes[i] = fields[20 + i*2].toDouble();
+        stockData.sellPrices[i] = fields[19 + i*2].toDouble();
+    }
+    
+    // 计算其他指标
+    double volume = fields[36].toDouble();  // 成交量
+    double amount = fields[37].toDouble();  // 成交额
+    stockData.marketValue = fields[45].toDouble();  // 总市值
+    stockData.totalShares = stockData.marketValue / stockData.currentPrice;  // 总股本（单位：股）
+    stockData.circulatingValue = fields[44].toDouble();  // 流通市值
+    stockData.circulatingShares = stockData.circulatingValue / stockData.totalShares;  // 流通股本
+    stockData.turnoverRate = fields[38].toDouble();  // 换手率
+    stockData.peRatio = fields[39].toDouble();  // 市盈率
+    stockData.pbRatio = fields[46].toDouble();  // 市净率
 
     latestData = stockData;
     emit stockDataReceived(stockData);

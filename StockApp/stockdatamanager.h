@@ -31,6 +31,17 @@ public:
         double lowPrice;
         double closePrice;
         QDateTime timestamp;
+        double totalShares;     // 总股本
+        double marketValue;     // 总市值
+        double turnoverRate;    // 换手率
+        double circulatingValue; // 流通值
+        double circulatingShares; // 流通股
+        double peRatio;         // 市盈率
+        double pbRatio;         // 市净率
+        double buyVolumes[5];   // 买一到买五的量
+        double buyPrices[5];    // 买一到买五的价
+        double sellVolumes[5];  // 卖一到卖五的量
+        double sellPrices[5];   // 卖一到卖五的价
     };
 
     /**

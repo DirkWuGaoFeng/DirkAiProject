@@ -7,8 +7,11 @@
 #include <QLabel>
 #include <QChartView>
 #include <QComboBox>
+#include <QListWidget>
+#include <QTableWidget>
 #include "stockdatamanager.h"
 #include "chartmanager.h"
+#include "stockcodemap.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -116,11 +119,22 @@ private:
     QDateTimeEdit *endDateEdit;          ///< 结束时间选择框
     QLabel *stockNameLabel;              ///< 股票名称标签
     QLabel *currentPriceLabel;           ///< 当前价格标签
+    QLabel *totalSharesLabel;            ///< 总股本标签
+    QLabel *marketValueLabel;            ///< 总市值标签
+    QLabel *turnoverRateLabel;           ///< 换手率标签
+    QLabel *circulatingSharesLabel;      ///< 流通股标签
+    QLabel *circulatingValueLabel;       ///< 流通值标签
+    QLabel *peRatioLabel;                ///< 市盈率标签
+    QLabel *pbRatioLabel;                ///< 市净率标签
+    QTableWidget *sellOrderTable;        ///< 卖盘数据表格
+    QTableWidget *buyOrderTable;         ///< 买盘数据表格
     QChartView *chartView;               ///< 图表视图
     QComboBox *chartTypeCombo;           ///< 图表类型选择框
+    QListWidget *suggestionList;         ///< 股票代码建议列表
 
     StockDataManager *stockManager;       ///< 股票数据管理器
     ChartManager *chartManager;           ///< 图表管理器
+    StockCodeMap *stockCodeMap;           ///< 股票代码映射管理器
 };
 
 #endif // MAINWINDOW_H

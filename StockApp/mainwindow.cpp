@@ -3,6 +3,8 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QListWidget>
+#include <QCompleter>
 
 /**
  * @brief 主窗口构造函数
@@ -16,6 +18,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
     , stockManager(new StockDataManager(this))
     , chartManager(new ChartManager(this))
+    , stockCodeMap(new StockCodeMap(this))
 {
     ui->setupUi(this);
     setupUI();
@@ -77,8 +80,51 @@ void MainWindow::setupUI()
     QVBoxLayout *searchContainer = new QVBoxLayout();
     QHBoxLayout *searchLayout = new QHBoxLayout();
     stockCodeEdit = new QLineEdit(this);
-    stockCodeEdit->setPlaceholderText("输入股票代码（如：sh600000）");
+    stockCodeEdit->setPlaceholderText("输入股票代码或名称（如：sh600000或平安银行）");
     searchButton = new QPushButton("实时数据", this);
+    
+    // 创建建议列表
+    suggestionList = new QListWidget(this);
+    suggestionList->setWindowFlags(Qt::Popup);
+    suggestionList->setFocusProxy(stockCodeEdit);
+    suggestionList->setMouseTracking(true);
+    suggestionList->hide();
+    
+    // 连接股票代码输入框的文本变化信号
+    connect(stockCodeEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
+        if (text.isEmpty()) {
+            suggestionList->hide();
+            return;
+        }
+        
+        // 获取匹配的股票列表
+        QStringList suggestions = stockCodeMap->search(text);
+        
+        if (suggestions.isEmpty()) {
+            suggestionList->hide();
+            return;
+        }
+        
+        // 更新建议列表
+        suggestionList->clear();
+        suggestionList->addItems(suggestions);
+        
+        // 调整建议列表的位置和大小
+        QPoint pos = stockCodeEdit->mapToGlobal(stockCodeEdit->rect().bottomLeft());
+        int width = stockCodeEdit->width();
+        int height = qMin(200, suggestions.count() * 25);
+        suggestionList->setGeometry(pos.x(), pos.y(), width, height);
+        suggestionList->show();
+    });
+    
+    // 连接建议列表的项目点击信号
+    connect(suggestionList, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+        QString text = item->text();
+        QString stockCode = text.split(" - ").first();
+        stockCodeEdit->setText(stockCode);
+        suggestionList->hide();
+    });
+    
     searchLayout->addWidget(stockCodeEdit);
     searchLayout->addWidget(searchButton);
 
@@ -115,9 +161,45 @@ void MainWindow::setupUI()
     QHBoxLayout *infoLayout = new QHBoxLayout();
     stockNameLabel = new QLabel(this);
     currentPriceLabel = new QLabel(this);
+    totalSharesLabel = new QLabel(this);
+    marketValueLabel = new QLabel(this);
+    turnoverRateLabel = new QLabel(this);
+    circulatingSharesLabel = new QLabel(this);
+    circulatingValueLabel = new QLabel(this);
+    peRatioLabel = new QLabel(this);
+    pbRatioLabel = new QLabel(this);
     infoLayout->addWidget(stockNameLabel);
     infoLayout->addWidget(currentPriceLabel);
+    infoLayout->addWidget(totalSharesLabel);
+    infoLayout->addWidget(marketValueLabel);
+    infoLayout->addWidget(turnoverRateLabel);
+    infoLayout->addWidget(circulatingSharesLabel);
+    infoLayout->addWidget(circulatingValueLabel);
+    infoLayout->addWidget(peRatioLabel);
+    infoLayout->addWidget(pbRatioLabel);
 
+    // 创建买卖盘数据表格
+    QHBoxLayout *orderLayout = new QHBoxLayout();
+    
+    // 创建卖盘表格
+    sellOrderTable = new QTableWidget(this);
+    sellOrderTable->setColumnCount(2);
+    sellOrderTable->setHorizontalHeaderLabels({"卖出价", "卖出量(手)"});
+    sellOrderTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    sellOrderTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    sellOrderTable->verticalHeader()->setVisible(false);
+    
+    // 创建买盘表格
+    buyOrderTable = new QTableWidget(this);
+    buyOrderTable->setColumnCount(2);
+    buyOrderTable->setHorizontalHeaderLabels({"买入价", "买入量(手)"});
+    buyOrderTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    buyOrderTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    buyOrderTable->verticalHeader()->setVisible(false);
+    
+    orderLayout->addWidget(sellOrderTable);
+    orderLayout->addWidget(buyOrderTable);
+    
     // 创建图表视图
     chartView = new QChartView(chartManager->chart(), this);
     chartView->setRenderHint(QPainter::Antialiasing);
@@ -125,6 +207,7 @@ void MainWindow::setupUI()
     // 添加到主布局
     mainLayout->addLayout(searchContainer);
     mainLayout->addLayout(infoLayout);
+    mainLayout->addLayout(orderLayout);
     mainLayout->addWidget(chartView);
 
     // 连接信号和槽
@@ -244,4 +327,30 @@ void MainWindow::updateStockInfo(const StockDataManager::StockData& data)
 {
     stockNameLabel->setText(QString("股票名称: %1").arg(data.name));
     currentPriceLabel->setText(QString("当前价格: %1").arg(data.currentPrice));
+
+    // 更新市场信息
+    totalSharesLabel->setText(QString("总股本: %1亿").arg(data.totalShares, 0, 'f', 2));
+    marketValueLabel->setText(QString("总市值: %1亿").arg(data.marketValue, 0, 'f', 2));
+    turnoverRateLabel->setText(QString("换手率: %1%").arg(data.turnoverRate, 0, 'f', 2));
+    circulatingSharesLabel->setText(QString("流通股: %1亿").arg(data.circulatingShares, 0, 'f', 2));
+    circulatingValueLabel->setText(QString("流通值: %1亿").arg(data.circulatingValue, 0, 'f', 2));
+    peRatioLabel->setText(QString("市盈率: %1").arg(data.peRatio, 0, 'f', 2));
+    pbRatioLabel->setText(QString("市净率: %1").arg(data.pbRatio, 0, 'f', 2));
+
+    // 更新买卖盘数据
+    buyOrderTable->setRowCount(5);
+    sellOrderTable->setRowCount(5);
+    for (int i = 0; i < 5; i++) {
+        // 买盘数据
+        QTableWidgetItem *buyPriceItem = new QTableWidgetItem(QString::number(data.buyPrices[i], 'f', 2));
+        QTableWidgetItem *buyVolumeItem = new QTableWidgetItem(QString::number(data.buyVolumes[i] / 100, 'f', 0));
+        buyOrderTable->setItem(i, 0, buyPriceItem);
+        buyOrderTable->setItem(i, 1, buyVolumeItem);
+
+        // 卖盘数据
+        QTableWidgetItem *sellPriceItem = new QTableWidgetItem(QString::number(data.sellPrices[i], 'f', 2));
+        QTableWidgetItem *sellVolumeItem = new QTableWidgetItem(QString::number(data.sellVolumes[i] / 100, 'f', 0));
+        sellOrderTable->setItem(i, 0, sellPriceItem);
+        sellOrderTable->setItem(i, 1, sellVolumeItem);
+    }
 }

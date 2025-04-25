@@ -14,6 +14,7 @@ find_package(Qt6 COMPONENTS
     Widgets
     Network
     Charts
+    Sql
     REQUIRED
 )
 
@@ -25,6 +26,8 @@ add_executable(StockApp
     chartmanager.h
     stockdatamanager.cpp
     stockdatamanager.h
+    stockcodemap.cpp
+    stockcodemap.h
 )
 
 target_link_libraries(StockApp PRIVATE
@@ -33,4 +36,5 @@ target_link_libraries(StockApp PRIVATE
     Qt6::Widgets
     Qt6::Network
     Qt6::Charts
+    Qt6::Sql
 )

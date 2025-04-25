@@ -73,20 +73,115 @@
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="infoLayout">
+     <layout class="QVBoxLayout" name="infoContainer">
       <item>
-       <widget class="QLabel" name="stockNameLabel">
-        <property name="text">
-         <string>股票名称：</string>
-        </property>
-       </widget>
+       <layout class="QHBoxLayout" name="infoLayout">
+        <item>
+         <widget class="QLabel" name="stockNameLabel">
+          <property name="text">
+           <string>股票名称：</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="currentPriceLabel">
+          <property name="text">
+           <string>当前价格：</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
       <item>
-       <widget class="QLabel" name="currentPriceLabel">
-        <property name="text">
-         <string>当前价格：</string>
-        </property>
-       </widget>
+       <layout class="QGridLayout" name="marketInfoLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="totalSharesLabel">
+          <property name="text">
+           <string>总股本：</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="marketValueLabel">
+          <property name="text">
+           <string>总市值：</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QLabel" name="turnoverRateLabel">
+          <property name="text">
+           <string>换手率：</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="circulatingSharesLabel">
+          <property name="text">
+           <string>流通股：</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLabel" name="circulatingValueLabel">
+          <property name="text">
+           <string>流通值：</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QLabel" name="peRatioLabel">
+          <property name="text">
+           <string>市盈率：</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="3">
+         <widget class="QLabel" name="pbRatioLabel">
+          <property name="text">
+           <string>市净率：</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="tradingLayout">
+        <item>
+         <widget class="QTableWidget" name="sellOrderTable">
+          <property name="columnCount">
+           <number>2</number>
+          </property>
+          <column>
+           <property name="text">
+            <string>卖出价</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>卖出量</string>
+           </property>
+          </column>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTableWidget" name="buyOrderTable">
+          <property name="columnCount">
+           <number>2</number>
+          </property>
+          <column>
+           <property name="text">
+            <string>买入价</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>买入量</string>
+           </property>
+          </column>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </item>
